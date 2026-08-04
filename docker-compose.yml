@@ -1,5 +1,5 @@
 services:
-  # Servidor Broker TCP Central (Protocolo FED1)
+  # Servidor Broker TCP Central (Protocolo OSGURI)
   chat-server:
     build:
       context: .

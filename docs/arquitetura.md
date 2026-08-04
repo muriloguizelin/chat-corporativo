@@ -17,7 +17,7 @@ O sistema de **Chat Corporativo Seguro da Federação** adota uma **Arquitetura 
  |  (Executivo MT)  |            |   (Central SD)    |            |  (Judiciário MT) |
  |                  |            |                   |            |                  |
  | +--------------+ | Sockets    | +---------------+ | Sockets    | +--------------+ |
- | |NetworkListen.| | TCP (FED1) | | MessageBroker | | TCP (FED1) | |NetworkListen.| |
+ | |NetworkListen.| | TCP (OSGURI) | | MessageBroker | | TCP (OSGURI) | |NetworkListen.| |
  | +--------------+ | <--------> | +---------------+ | <--------> | +--------------+ |
  | |  VectorClock | |            | | VectorClock   | |            | |  VectorClock | |
  | +--------------+ |            | +---------------+ |            | +--------------+ |
@@ -39,7 +39,7 @@ O sistema de **Chat Corporativo Seguro da Federação** adota uma **Arquitetura 
 
 O sistema opera na **Camada de Aplicação (Layer 7 do modelo OSI)** diretamente sobre a camada de transporte **TCP (Transmission Control Protocol)**.
 
-### Protocolo Próprio da Federação: `FED1`
+### Protocolo Próprio da Federação: `OSGURI Protocolo`
 Para evitar *overhead* excessivo do HTTP/REST em mensagens de tempo real, foi criado um **framing binário/textual customizado**:
 
 #### Layout do Quadro (Frame) TCP:
@@ -50,7 +50,7 @@ Para evitar *overhead* excessivo do HTTP/REST em mensagens de tempo real, foi cr
 +---------------------------------------------------------------------------------------------------+
 ```
 
-- **MAGIC_NUMBER (4 bytes)**: `0x46454431` ("FED1"). Garante que o Socket está recebendo quadros válidos do sistema.
+- **MAGIC_NUMBER (4 bytes)**: `0x4F534755` ("OSGU" / OSGURI Protocolo). Garante que o Socket está recebendo quadros válidos do sistema.
 - **TYPE_CODE (4 bytes)**: Inteiro identificando a ação (`1=LOGIN`, `3=TEXT_DIRECT`, `4=FILE_TRANSFER`, `7=CREATE_GROUP`, `8=GROUP_MSG`, etc.).
 - **SENDER_ID / TARGET_ID (UTF-8)**: Identificadores no padrão da Federação (ex: `exec-mt-joao`, `jud-df-maria`).
 - **VECTOR_CLOCK (UTF-8)**: Representação serializada do Relógio Vetorial (ex: `SERVER:4;exec-mt-joao:2`).

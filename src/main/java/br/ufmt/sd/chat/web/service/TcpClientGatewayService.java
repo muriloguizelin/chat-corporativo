@@ -108,7 +108,7 @@ public class TcpClientGatewayService {
 
             WebSessionState session = new WebSessionState(socket, in, out, userId);
 
-            // Enviar pacote de LOGIN no protocolo FED1
+            // Enviar pacote de LOGIN no protocolo OSGURI
             session.localClock.increment(userId);
             MessagePacket loginPacket = MessagePacket.createTextPacket(MessageType.LOGIN, userId, "SERVER", "LOGIN_WEB");
             loginPacket.setVectorClock(session.localClock);

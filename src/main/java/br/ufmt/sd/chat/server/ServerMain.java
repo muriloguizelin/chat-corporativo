@@ -33,7 +33,7 @@ public class ServerMain {
         System.out.println("===============================================================");
         System.out.println(" Status: ONLINE");
         System.out.println(" Porta TCP: " + port);
-        System.out.println(" Protocolo: FED1 (Framing Binário sobre TCP)");
+        System.out.println(" Protocolo: OSGURI (Framing Binário sobre TCP)");
         System.out.println(" Recursos: Ordenação Causal (Vector Clocks), RBAC, Sockets Concorrentes");
         System.out.println("===============================================================");
         System.out.println("[SERVER] Aguardando conexões de clientes...");

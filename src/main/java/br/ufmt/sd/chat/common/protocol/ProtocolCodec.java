@@ -12,7 +12,7 @@ import java.io.IOException;
  * Codificador/Decodificador (Codec) do Protocolo de Aplicação da Federação sobre TCP.
  * 
  * Estrutura do Quadro (Frame) enviado pelo Socket:
- * [MAGIC_NUMBER - 4 bytes] (0x46454431 = 'FED1')
+ * [MAGIC_NUMBER - 4 bytes] (0x4F534755 = 'OSGU' / OSGURI Protocol)
  * [MESSAGE_TYPE  - 4 bytes] (1..14)
  * [SENDER_ID     - UTF]     (String)
  * [TARGET_ID     - UTF]     (String)
@@ -24,8 +24,8 @@ import java.io.IOException;
  */
 public class ProtocolCodec {
 
-    // Magic Number para validação do protocolo "FED1"
-    public static final int MAGIC_NUMBER = 0x46454431;
+    // Magic Number para validação do protocolo "OSGURI"
+    public static final int MAGIC_NUMBER = 0x4F534755;
 
     /**
      * Serializa e envia um pacote pela conexão Socket TCP.
