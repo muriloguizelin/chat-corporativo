@@ -1,5 +1,6 @@
 # Maven build outputs
 **/target/
+**/dependency-reduced-pom.xml
 *.jar
 *.war
 *.ear

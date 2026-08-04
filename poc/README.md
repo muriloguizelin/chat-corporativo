@@ -64,8 +64,8 @@ Exemplo:
 java -jar server/target/chat-server-1.0-SNAPSHOT.jar 8080
 ```
 
-### 2. Iniciar os Clientes
-Abra novos terminais para cada cliente que deseja simular. O executável aceita opcionalmente o IP e a Porta do servidor.
+### 2. Iniciar os Clientes com Interface Grafica
+Abra uma nova instancia para cada cliente que deseja simular. O executavel aceita opcionalmente o IP e a Porta do servidor.
 ```bash
 java -jar client/target/chat-client-1.0-SNAPSHOT.jar [host] [porta]
 ```
@@ -74,8 +74,32 @@ Exemplo (conectando no localhost na porta 8080):
 java -jar client/target/chat-client-1.0-SNAPSHOT.jar localhost 8080
 ```
 
+A tela abre diretamente no login, com campos separados para `estado`, `orgao` e `usuario`. Ao clicar em **Entrar**, o cliente concatena os campos no formato exigido pelo protocolo:
+```text
+estado.orgao.usuario
+```
 
-### 3. Executando com Docker
+Exemplo:
+```text
+sp + tjsp + alice = sp.tjsp.alice
+```
+
+Para abrir mais clientes, execute o comando novamente em outro terminal ou use o menu **Cliente > Novo cliente** dentro da propria janela.
+
+Depois do login, a lateral **Usuarios conectados** mostra os outros clientes online e atualiza automaticamente a cada poucos segundos. Ao selecionar um usuario nessa lista, o campo `Destino` das abas **Mensagem** e **Arquivo** e preenchido com o identificador completo da pessoa.
+
+### 3. Iniciar Cliente em Modo Terminal
+O cliente original de console continua disponivel usando `--cli`:
+```bash
+java -jar client/target/chat-client-1.0-SNAPSHOT.jar --cli [host] [porta]
+```
+
+Exemplo:
+```bash
+java -jar client/target/chat-client-1.0-SNAPSHOT.jar --cli localhost 8080
+```
+
+### 4. Executando com Docker
 
 Você também pode compilar e executar o projeto inteiramente em containers Docker, eliminando a necessidade de JDK ou Maven instalados localmente no seu host.
 
@@ -97,11 +121,11 @@ Como o cliente necessita de interação de console via teclado (STDIN e TTY), el
 2. Inicie containers de clientes em terminais separados:
    * **Conectar usando a rede do host (Recomendado para Windows/Linux)**:
      ```bash
-     docker run -it --network="host" chat-client localhost 8080
+     docker run -it --network="host" chat-client --cli localhost 8080
      ```
    * **Conectar usando a rede bridge criada pelo Docker Compose**:
      ```bash
-     docker run -it --network="poc_chat-network" chat-client chat-server 8080
+     docker run -it --network="poc_chat-network" chat-client --cli chat-server 8080
      ```
 
 ---

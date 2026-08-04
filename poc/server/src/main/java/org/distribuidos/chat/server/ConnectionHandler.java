@@ -13,6 +13,8 @@ import org.distribuidos.chat.shared.ProtocolParser;
 import org.distribuidos.chat.shared.TextMessage;
 
 public class ConnectionHandler implements Runnable {
+    private static final String ONLINE_USERS_PREFIX = "ONLINE_USERS:";
+
     private final Socket socket;
     private final ClientManager clientManager;
     private final XmlMapper xmlMapper = new XmlMapper();
@@ -120,6 +122,11 @@ public class ConnectionHandler implements Runnable {
         }
 
         TextMessage textMsg = xmlMapper.readValue(message.getPayload(), TextMessage.class);
+
+        if ("server.users".equalsIgnoreCase(textMsg.getRecipient())) {
+            sendAck(ONLINE_USERS_PREFIX + String.join(",", clientManager.getOnlineUsers()));
+            return;
+        }
         
         // Handle join group special recipient
         if ("server.join".equalsIgnoreCase(textMsg.getRecipient())) {

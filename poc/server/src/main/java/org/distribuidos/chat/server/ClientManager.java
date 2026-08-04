@@ -57,7 +57,9 @@ public class ClientManager {
     }
 
     public List<String> getOnlineUsers() {
-        return new ArrayList<>(activeClients.keySet());
+        List<String> users = new ArrayList<>(activeClients.keySet());
+        Collections.sort(users);
+        return users;
     }
 
     /**

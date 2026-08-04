@@ -22,7 +22,7 @@ services:
       - chat-server
     networks:
       - chat-network
-    entrypoint: ["java", "-jar", "app.jar", "chat-server", "8080"]
+    entrypoint: ["java", "-jar", "app.jar", "--cli", "chat-server", "8080"]
 
 networks:
   chat-network:
