@@ -1,0 +1,21 @@
+services:
+  broker:
+    build: .
+    container_name: osguri-broker
+    ports:
+      - "12345:12345"
+    restart: unless-stopped
+
+  cliente:
+    build: .
+    container_name: osguri-cliente
+    environment:
+      - OSGURI_HOST=broker
+      - OSGURI_PORT=12345
+    command: java -cp bin br.ufmt.osguri.client.ClienteCLI
+    stdin_open: true
+    tty: true
+    depends_on:
+      - broker
+    volumes:
+      - ./downloads:/app/downloads
