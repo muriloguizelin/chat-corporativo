@@ -1,33 +1,21 @@
 services:
-  # Servidor Broker TCP Central (Protocolo OSGURI)
-  chat-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.server
-    container_name: chat-server-broker
+  broker:
+    build: .
+    container_name: osguri-broker
     ports:
-      - "9090:9090"
-    networks:
-      - fed-chat-network
+      - "12345:12345"
     restart: unless-stopped
 
-  # Cliente Web Thymeleaf (Spring Boot)
-  chat-web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-    container_name: chat-web-interface
-    ports:
-      - "8080:8080"
+  cliente:
+    build: .
+    container_name: osguri-cliente
     environment:
-      - CHAT_SERVER_HOST=chat-server
-      - CHAT_SERVER_PORT=9090
+      - OSGURI_HOST=broker
+      - OSGURI_PORT=12345
+    command: java -cp bin br.ufmt.osguri.client.ClienteCLI
+    stdin_open: true
+    tty: true
     depends_on:
-      - chat-server
-    networks:
-      - fed-chat-network
-    restart: unless-stopped
-
-networks:
-  fed-chat-network:
-    driver: bridge
+      - broker
+    volumes:
+      - ./downloads:/app/downloads
