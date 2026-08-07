@@ -18,4 +18,4 @@ services:
     depends_on:
       - broker
     volumes:
-      - ./downloads:/app/downloads
+      - .:/app
