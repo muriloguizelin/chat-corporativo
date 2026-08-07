@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Servidor Broker Central do Sistema de Comunicação Corporativo OSGURI.
@@ -22,6 +23,7 @@ public class ServidorBroker {
     private final Map<String, Grupo> grupos;
     private final LoggerNaoRepudio loggerAudit;
     private final ExecutorService threadPool;
+    private final AtomicLong timestampGlobal;
 
     public ServidorBroker(int porta) {
         this.porta = porta;
@@ -29,6 +31,7 @@ public class ServidorBroker {
         this.grupos = new ConcurrentHashMap<>();
         this.loggerAudit = new LoggerNaoRepudio();
         this.threadPool = Executors.newFixedThreadPool(100);
+        this.timestampGlobal = new AtomicLong(0);
     }
 
     public void iniciar() {
@@ -100,6 +103,10 @@ public class ServidorBroker {
 
     public LoggerNaoRepudio getLoggerAudit() {
         return loggerAudit;
+    }
+
+    public String gerarTimestampGlobal() {
+        return Long.toString(timestampGlobal.incrementAndGet());
     }
 
     public static void main(String[] args) {

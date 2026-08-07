@@ -13,7 +13,7 @@
 
 O sistema **OSGURI** foi projetado para prover uma infraestrutura de comunicação segura, auditável e distribuída para entes governamentais abrangendo mais de 30 estados e os quatro Poderes/Órgãos constitucionais: **Executivo, Legislativo, Judiciário e Controle**.
 
-O objetivo principal desta documentação é detalhar as decisões arquiteturais, especificações do protocolo de camada de aplicação, mecanismos de ordenação causal, criptografia e matriz de restrição governamental, oferecendo clareza e rigidez técnica para engenheiros de software e auditores.
+O objetivo principal desta documentação é detalhar as decisões arquiteturais, especificações do protocolo de camada de aplicação, mecanismo de ordenação global de mensagens, criptografia e matriz de restrição governamental, oferecendo clareza e rigidez técnica para engenheiros de software e auditores.
 
 ---
 
@@ -31,7 +31,7 @@ A solução adota o padrão **Cliente-Servidor mediado por Broker (Relay Broker)
 c:\Users\Muril\chat-corporativo\src\br\ufmt\osguri\
 ├── protocolo/
 │   ├── Poder.java            -> Enumeração e Matriz Restritiva entre Poderes
-│   ├── RelogioVetorial.java  -> Algoritmo de Relógio Vetorial (Ordem Causal)
+│   ├── RelogioVetorial.java  -> Implementação de apoio/legada para Relógio Vetorial
 │   ├── CriptografiaUtil.java -> Camada de Segurança (AES-256 e HMAC-SHA256)
 │   ├── ProtocoloOSGURI.java  -> Constantes e Comandos do Protocolo
 │   └── MensagemOSGURI.java   -> Envelope do Protocolo (Serialização/Desserialização)
@@ -39,7 +39,7 @@ c:\Users\Muril\chat-corporativo\src\br\ufmt\osguri\
 │   ├── Grupo.java            -> Entidade de Grupos Institucionais e Privados
 │   ├── LoggerNaoRepudio.java -> Audit Trail Imutável (Arquivo e Memória)
 │   ├── ClienteHandler.java   -> Worker Runnable alocado no Pool de Threads
-│   └── ServidorBroker.java   -> Servidor Principal (ExecutorService Thread Pool)
+│   └── ServidorBroker.java   -> Servidor Principal (Thread Pool e Sequenciador Global)
 └── client/
     └── ClienteCLI.java       -> Terminal Interativo CLI com menu numérico e comandos
 ```
@@ -49,7 +49,7 @@ Em vez de alocar uma nova thread de sistema operacional indefinidamente por cone
 
 #### Justificativa Técnica:
 1. **Prevenção de Thread Exhaustion**: Evita o esgotamento de memória stack do SO sob alta concorrência de clientes.
-2. **Caminho para Escalabilidade Horizontal (Federação de Brokers)**: Em ambiente produtivo, múltiplos nós de Brokers podem rodar em cluster utilizando barramentos de mensageria internos (ex: Redis Pub/Sub ou Broker-to-Broker TCP Sockets) para trocar envelopes OSGURI mantendo o mesmo algoritmo de relógio vetorial e validação de HMAC.
+2. **Caminho para Escalabilidade Horizontal (Federação de Brokers)**: Em ambiente produtivo, múltiplos nós de Brokers podem rodar em cluster utilizando barramentos de mensageria internos (ex: Redis Pub/Sub ou Broker-to-Broker TCP Sockets) para trocar envelopes OSGURI. Nessa evolução, o sequenciamento global deve ser coordenado entre brokers por uma autoridade única de ordem, consenso ou particionamento explícito de sequência, preservando a validação de HMAC.
 
 ---
 
@@ -68,7 +68,7 @@ TIPO|REMETENTE|DESTINO|TIMESTAMP_LOGICO|CONTEUDO_CIFRADO|HMAC_SIGNATURE
 | **TIPO** | Operação realizada pelo protocolo | `LOGIN`, `MSG`, `ARQUIVO`, `ONLINE`, `GRUPO_MSG` |
 | **REMETENTE** | ID único do remetente (normalizado) | `SP-SSP-MURILO` |
 | **DESTINO** | ID do usuário de destino, grupo ou `BROKER` | `RJ-TJ-MARIA` ou `GRUPO_AUDITORIA` |
-| **TIMESTAMP_LOGICO**| Estado do Relógio Vetorial serializado | `SP-SSP-MURILO:2,RJ-TJ-MARIA:1` |
+| **TIMESTAMP_LOGICO**| Sequência lógica global atribuída pelo Broker | `42` |
 | **CONTEUDO_CIFRADO**| Cifragem AES-256 (Base64) do conteúdo útil | `k9aX8Q...==` |
 | **HMAC_SIGNATURE** | Hash de autenticidade HMAC-SHA256 | `aF31b9...==` |
 
@@ -107,19 +107,28 @@ Um requisito essencial do sistema é a aplicação de políticas institucionais 
 
 ---
 
-## 5. SISTEMAS DISTRIBUÍDOS: ORDENAÇÃO CAUSAL (RELÓGIO VETORIAL)
+## 5. SISTEMAS DISTRIBUÍDOS: ORDENAÇÃO GLOBAL PELO BROKER
 
-Para garantir a coerência causal do histórico de mensagens em um sistema distribuído sem depender de relógios físicos sincronizados (que sofrem de *clock drift*), é implementado o **Relógio Vetorial (`RelogioVetorial`)**.
+A implementação atual utiliza o Broker como autoridade central de ordenação. Em vez de depender do relógio local dos clientes, o `ServidorBroker` mantém um contador monotônico global (`AtomicLong timestampGlobal`) e atribui uma sequência lógica a cada mensagem encaminhada, arquivo, resposta de sistema ou mensagem de grupo.
 
-### 5.1 Algoritmo
-1. Cada cliente e nó mantém um vetor $V$, onde $V[i]$ representa o número de eventos conhecidos do processo $i$.
-2. **Evento Local / Envio**: O processo $i$ incrementa seu próprio componente:  
-   $$V[i] = V[i] + 1$$
-3. **Envio de Mensagem**: A mensagem carrega o estado atual do vetor $V$.
-4. **Recepção de Mensagem**: Ao receber o vetor $V_{rec}$, o receptor $j$ executa o merge atualizando cada componente:  
-   $$\forall k, \quad V_j[k] = \max(V_j[k], V_{rec}[k])$$  
-   Seguido do incremento de seu próprio relógio $V_j[j] = V_j[j] + 1$.
-5. **Ordenação Causal**: O histórico no cliente (`/historico`) ordena as mensagens comparando o somatório e dependências causais dos vetores lógicos, garantindo que o histórico reflita a causa e efeito real das interações.
+O campo do envelope chamado `TIMESTAMP_LOGICO` foi preservado por compatibilidade de protocolo, mas seu conteúdo ativo agora é um número sequencial global gerado pelo Broker, como `1`, `2`, `3` e assim sucessivamente.
+
+### 5.1 Algoritmo Ativo
+1. O cliente envia comandos ao Broker com `TIMESTAMP_LOGICO` vazio ou `-`, sem impor ordem local.
+2. O `ClienteHandler` valida autenticação, destino, grupo e matriz de restrição entre Poderes.
+3. Antes de encaminhar a mensagem ou resposta, o Broker chama `gerarTimestampGlobal()`.
+4. `gerarTimestampGlobal()` executa `timestampGlobal.incrementAndGet()`, garantindo incremento atômico mesmo com múltiplas conexões atendidas pelo pool de threads.
+5. A nova `MensagemOSGURI` é reconstruída com a sequência global atribuída pelo Broker e então serializada, auditada e entregue ao destinatário.
+6. O cliente armazena as mensagens recebidas e o comando `/historico` ordena a lista por comparação numérica do `TIMESTAMP_LOGICO`.
+
+### 5.2 Impacto Arquitetural
+- **Fonte única de verdade da ordem**: a ordem de entrega auditável passa a ser definida pelo Broker, não pelo relógio local do cliente.
+- **Concorrência segura**: o uso de `AtomicLong` evita condições de corrida na geração de timestamps em ambiente multithread.
+- **Auditoria determinística**: o log de não-repúdio registra `ORDEM_GLOBAL`, permitindo reconstruir a sequência de eventos processados pelo Broker.
+- **Limite distribuído conhecido**: em uma futura federação de brokers, esse contador local precisará ser substituído ou complementado por um mecanismo de coordenação distribuída de sequência.
+
+### 5.3 Relógio Vetorial
+O componente `RelogioVetorial` permanece no pacote `protocolo` como implementação de apoio/legada para cenários de ordenação causal distribuída. Entretanto, no fluxo atual do sistema, clientes não incrementam nem propagam vetores, e o Broker não realiza merge vetorial. Portanto, a ordem efetiva observada pelo histórico e pela auditoria é a **ordem global sequencial atribuída pelo Broker**.
 
 ---
 
@@ -135,7 +144,7 @@ Para garantir a coerência causal do histórico de mensagens em um sistema distr
 
 ### 6.3 Não-Repúdio (`LoggerNaoRepudio`)
 - O Broker grava uma trilha imutável de auditoria no arquivo `osguri_audit.log` e na memória.
-- Cada entrada registra: `Timestamp de Parede`, `Tipo`, `ID Remetente`, `ID Destino`, `Estado do Relógio Vetorial` e `Assinatura HMAC`.
+- Cada entrada registra: `Timestamp de Parede`, `Tipo`, `ID Remetente`, `ID Destino`, `ORDEM_GLOBAL` e `Assinatura HMAC`.
 - Como todas as mensagens são assinadas pelo remetente e validadas pelo Broker, o remetente não pode negar a autoria de uma mensagem enviada.
 
 ---

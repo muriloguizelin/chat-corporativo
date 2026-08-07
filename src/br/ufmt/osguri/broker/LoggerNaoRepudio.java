@@ -25,7 +25,7 @@ public class LoggerNaoRepudio {
      * Registra o evento de envio de mensagem no log de auditoria de não-repúdio.
      */
     public synchronized void registrarEvento(MensagemOSGURI msg) {
-        String logRegistro = String.format("[%s] TIPO: %s | DE: %s | PARA: %s | RELÓGIO: %s | HMAC: %s",
+        String logRegistro = String.format("[%s] TIPO: %s | DE: %s | PARA: %s | ORDEM_GLOBAL: %s | HMAC: %s",
                 LocalDateTime.now(),
                 msg.getTipo(),
                 msg.getRemetente(),

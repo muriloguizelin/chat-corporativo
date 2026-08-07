@@ -3,17 +3,16 @@ package br.ufmt.osguri.client;
 import br.ufmt.osguri.protocolo.MensagemOSGURI;
 import br.ufmt.osguri.protocolo.Poder;
 import br.ufmt.osguri.protocolo.ProtocoloOSGURI;
-import br.ufmt.osguri.protocolo.RelogioVetorial;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -36,14 +35,12 @@ public class ClienteCLI {
     private String orgao;
     private Poder poder;
 
-    private final RelogioVetorial relogioVetorial;
     private final List<MensagemOSGURI> historicoMensagens;
     private boolean executando = true;
 
     public ClienteCLI(String host, int porta) {
         this.host = host;
         this.porta = porta;
-        this.relogioVetorial = new RelogioVetorial();
         this.historicoMensagens = Collections.synchronizedList(new ArrayList<>());
     }
 
@@ -105,9 +102,8 @@ public class ClienteCLI {
             this.usuarioId = (estado + "-" + orgao + "-" + nome).toUpperCase();
 
             // Registro do Login no Protocolo OSGURI
-            relogioVetorial.incrementar(this.usuarioId);
             String payloadLogin = usuarioId + "|" + nome + "|" + orgao + "|" + poder.name();
-            MensagemOSGURI msgLogin = new MensagemOSGURI(ProtocoloOSGURI.LOGIN, usuarioId, "BROKER", relogioVetorial.serializar(), payloadLogin);
+            MensagemOSGURI msgLogin = new MensagemOSGURI(ProtocoloOSGURI.LOGIN, usuarioId, "BROKER", "-", payloadLogin);
             enviarMensagem(msgLogin.serializar());
 
             String respostaStr = lerLinha(entrada);
@@ -144,7 +140,7 @@ public class ClienteCLI {
                 } else if (linhaInput.startsWith("/grupo ")) {
                     processarGrupo(linhaInput);
                 } else if (linhaInput.equalsIgnoreCase("/historico")) {
-                    exibirHistoricoCausal();
+                    exibirHistoricoGlobal();
                 } else if (linhaInput.equalsIgnoreCase("/ajuda")) {
                     exibirMenu();
                 } else {
@@ -167,7 +163,7 @@ public class ClienteCLI {
         System.out.println(" /grupo criar <nome> <TIPO>            - Criar grupo (INSTITUCIONAL|PRIVADO)");
         System.out.println(" /grupo entrar <nome>                  - Entrar em um grupo");
         System.out.println(" /grupo msg <nome> <texto>             - Enviar mensagem em grupo");
-        System.out.println(" /historico                            - Exibir histórico ordenado causalmente");
+        System.out.println(" /historico                            - Exibir histórico ordenado pelo Broker");
         System.out.println(" /sair                                 - Encerrar sessão");
         System.out.println("-----------------------------------\n");
     }
@@ -181,10 +177,8 @@ public class ClienteCLI {
         String destino = partes[0].trim();
         String texto = partes[1].trim();
 
-        relogioVetorial.incrementar(usuarioId);
-        MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.MSG, usuarioId, destino, relogioVetorial.serializar(), texto);
+        MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.MSG, usuarioId, destino, "-", texto);
         enviarMensagem(msg.serializar());
-        historicoMensagens.add(msg);
         System.out.println("[ENVIADO] Mensagem encaminhada ao Broker.");
     }
 
@@ -203,22 +197,17 @@ public class ClienteCLI {
             return;
         }
 
-        byte[] fileBytes;
-        try (FileInputStream fis = new FileInputStream(arq)) {
-            fileBytes = fis.readAllBytes();
-        }
+        byte[] fileBytes = Files.readAllBytes(arq.toPath());
         String base64Content = Base64.getEncoder().encodeToString(fileBytes);
         String payload = arq.getName() + "|" + base64Content;
 
-        relogioVetorial.incrementar(usuarioId);
-        MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.ARQUIVO, usuarioId, destino, relogioVetorial.serializar(), payload);
+        MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.ARQUIVO, usuarioId, destino, "-", payload);
         enviarMensagem(msg.serializar());
         System.out.println("[ENVIADO] Arquivo '" + arq.getName() + "' codificado em Base64 e enviado ao Broker.");
     }
 
     private void processarOnline() throws IOException {
-        relogioVetorial.incrementar(usuarioId);
-        MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.ONLINE, usuarioId, "BROKER", relogioVetorial.serializar(), "");
+        MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.ONLINE, usuarioId, "BROKER", "-", "");
         enviarMensagem(msg.serializar());
     }
 
@@ -233,15 +222,13 @@ public class ClienteCLI {
             String nomeGrupo = partes[0];
             String tipo = partes[1].toUpperCase();
 
-            relogioVetorial.incrementar(usuarioId);
             String payload = nomeGrupo + "|" + tipo;
-            MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.GRUPO_CRIAR, usuarioId, "BROKER", relogioVetorial.serializar(), payload);
+            MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.GRUPO_CRIAR, usuarioId, "BROKER", "-", payload);
             enviarMensagem(msg.serializar());
 
         } else if (subComando.startsWith("entrar ")) {
             String nomeGrupo = subComando.substring(7).trim();
-            relogioVetorial.incrementar(usuarioId);
-            MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.GRUPO_ENTRAR, usuarioId, "BROKER", relogioVetorial.serializar(), nomeGrupo);
+            MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.GRUPO_ENTRAR, usuarioId, "BROKER", "-", nomeGrupo);
             enviarMensagem(msg.serializar());
 
         } else if (subComando.startsWith("msg ")) {
@@ -253,9 +240,8 @@ public class ClienteCLI {
             String nomeGrupo = partes[0];
             String texto = partes[1];
 
-            relogioVetorial.incrementar(usuarioId);
             String payload = nomeGrupo + "|" + texto;
-            MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.GRUPO_MSG, usuarioId, "BROKER", relogioVetorial.serializar(), payload);
+            MensagemOSGURI msg = new MensagemOSGURI(ProtocoloOSGURI.GRUPO_MSG, usuarioId, "BROKER", "-", payload);
             enviarMensagem(msg.serializar());
         } else {
             System.out.println("Subcomando inválido. Use criar, entrar ou msg.");
@@ -268,9 +254,6 @@ public class ClienteCLI {
             while (executando && (linha = lerLinha(entrada)) != null) {
                 MensagemOSGURI msg = MensagemOSGURI.desserializar(linha);
                 if (msg == null) continue;
-
-                RelogioVetorial rvRecebido = RelogioVetorial.desserializar(msg.getTimestampLogico());
-                relogioVetorial.merge(rvRecebido.getRelogio());
 
                 historicoMensagens.add(msg);
 
@@ -327,21 +310,31 @@ public class ClienteCLI {
         }
     }
 
-    private void exibirHistoricoCausal() {
-        System.out.println("\n=== HISTÓRICO DE MENSAGENS (ORDEM CAUSAL / RELÓGIO VETORIAL) ===");
+    private void exibirHistoricoGlobal() {
+        System.out.println("\n=== HISTÓRICO DE MENSAGENS (ORDEM GLOBAL DO BROKER) ===");
         synchronized (historicoMensagens) {
             List<MensagemOSGURI> copia = new ArrayList<>(historicoMensagens);
-            copia.sort((m1, m2) -> {
-                RelogioVetorial rv1 = RelogioVetorial.desserializar(m1.getTimestampLogico());
-                RelogioVetorial rv2 = RelogioVetorial.desserializar(m2.getTimestampLogico());
-                return rv1.compareTo(rv2);
-            });
+            copia.sort((m1, m2) -> Long.compare(
+                    parseTimestampGlobal(m1.getTimestampLogico()),
+                    parseTimestampGlobal(m2.getTimestampLogico())
+            ));
 
             for (MensagemOSGURI m : copia) {
                 System.out.println(" - " + m.getTimestampLogico() + " | " + m.getTipo() + " | " + m.getRemetente() + " -> " + m.getDestino() + ": " + m.getConteudo());
             }
         }
         System.out.println("=================================================================\n");
+    }
+
+    private long parseTimestampGlobal(String timestamp) {
+        if (timestamp == null || timestamp.trim().isEmpty() || timestamp.equals("-")) {
+            return Long.MAX_VALUE;
+        }
+        try {
+            return Long.parseLong(timestamp.trim());
+        } catch (NumberFormatException e) {
+            return Long.MAX_VALUE;
+        }
     }
 
     private synchronized void enviarMensagem(String linha) throws IOException {
@@ -359,7 +352,7 @@ public class ClienteCLI {
             if (b != '\r') baos.write(b);
         }
         if (b == -1 && baos.size() == 0) return null;
-        return baos.toString(StandardCharsets.UTF_8);
+        return baos.toString(StandardCharsets.UTF_8.name());
     }
 
     private void fecharConexao() {

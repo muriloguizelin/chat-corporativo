@@ -3,7 +3,6 @@ package br.ufmt.osguri.broker;
 import br.ufmt.osguri.protocolo.MensagemOSGURI;
 import br.ufmt.osguri.protocolo.Poder;
 import br.ufmt.osguri.protocolo.ProtocoloOSGURI;
-import br.ufmt.osguri.protocolo.RelogioVetorial;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -28,12 +27,10 @@ public class ClienteHandler implements Runnable {
     private String nome;
     private String orgao;
     private Poder poder;
-    private final RelogioVetorial relogioVetorial;
 
     public ClienteHandler(Socket socket, ServidorBroker broker) {
         this.socket = socket;
         this.broker = broker;
-        this.relogioVetorial = new RelogioVetorial();
     }
 
     public String getUsuarioId() {
@@ -86,10 +83,7 @@ public class ClienteHandler implements Runnable {
             return;
         }
 
-        // Atualiza o Relógio Vetorial local a partir do relógio recebido
-        RelogioVetorial relogioRecebido = RelogioVetorial.desserializar(msg.getTimestampLogico());
-        relogioVetorial.merge(relogioRecebido.getRelogio());
-        relogioVetorial.incrementar(usuarioId);
+        // A ordem das mensagens e definida pelo Broker, nao pelo relogio local do cliente.
 
         // 2. Mensagem Direta
         if (tipo.equals(ProtocoloOSGURI.MSG)) {
@@ -106,14 +100,13 @@ public class ClienteHandler implements Runnable {
                 return;
             }
 
-            // Registra Auditoria de Não-Repúdio
-            broker.getLoggerAudit().registrarEvento(msg);
-
             // Repassa a mensagem ao destinatário
             MensagemOSGURI msgEncaminhada = new MensagemOSGURI(
-                ProtocoloOSGURI.MSG, usuarioId, msg.getDestino(), relogioVetorial.serializar(), msg.getConteudo()
+                ProtocoloOSGURI.MSG, usuarioId, msg.getDestino(), broker.gerarTimestampGlobal(), msg.getConteudo()
             );
-            destinoHandler.enviarMensagemRaw(msgEncaminhada.serializar());
+            String linhaEncaminhada = msgEncaminhada.serializar();
+            broker.getLoggerAudit().registrarEvento(msgEncaminhada);
+            destinoHandler.enviarMensagemRaw(linhaEncaminhada);
 
         // 3. Envio de Arquivo (Base64)
         } else if (tipo.equals(ProtocoloOSGURI.ARQUIVO)) {
@@ -129,12 +122,12 @@ public class ClienteHandler implements Runnable {
                 return;
             }
 
-            broker.getLoggerAudit().registrarEvento(msg);
-
             MensagemOSGURI msgArquivo = new MensagemOSGURI(
-                ProtocoloOSGURI.ARQUIVO, usuarioId, msg.getDestino(), relogioVetorial.serializar(), msg.getConteudo()
+                ProtocoloOSGURI.ARQUIVO, usuarioId, msg.getDestino(), broker.gerarTimestampGlobal(), msg.getConteudo()
             );
-            destinoHandler.enviarMensagemRaw(msgArquivo.serializar());
+            String linhaArquivo = msgArquivo.serializar();
+            broker.getLoggerAudit().registrarEvento(msgArquivo);
+            destinoHandler.enviarMensagemRaw(linhaArquivo);
 
         // 4. Busca / Online Usuários Cadastrados
         } else if (tipo.equals(ProtocoloOSGURI.BUSCA) || tipo.equals(ProtocoloOSGURI.ONLINE)) {
@@ -190,16 +183,18 @@ public class ClienteHandler implements Runnable {
                 return;
             }
 
-            broker.getLoggerAudit().registrarEvento(msg);
+            String timestampMensagem = broker.gerarTimestampGlobal();
+            MensagemOSGURI msgGrupo = new MensagemOSGURI(
+                ProtocoloOSGURI.GRUPO_MSG, usuarioId, nomeGrupo, timestampMensagem, texto
+            );
+            String linhaGrupo = msgGrupo.serializar();
+            broker.getLoggerAudit().registrarEvento(msgGrupo);
 
             for (String membroId : grupo.getMembros()) {
                 if (!membroId.equals(usuarioId)) {
                     ClienteHandler h = broker.buscarCliente(membroId);
                     if (h != null) {
-                        MensagemOSGURI msgGrupo = new MensagemOSGURI(
-                            ProtocoloOSGURI.GRUPO_MSG, usuarioId, nomeGrupo, relogioVetorial.serializar(), texto
-                        );
-                        h.enviarMensagemRaw(msgGrupo.serializar());
+                        h.enviarMensagemRaw(linhaGrupo);
                     }
                 }
             }
@@ -234,14 +229,12 @@ public class ClienteHandler implements Runnable {
         this.nome = nomeCandidato;
         this.orgao = orgaoCandidato;
         this.poder = poderCandidato;
-        this.relogioVetorial.incrementar(this.usuarioId);
-
         System.out.println("Usuário registrado no Broker: " + usuarioId + " [" + poder + " - " + orgao + "]");
         enviarResposta(ProtocoloOSGURI.OK, "SISTEMA", usuarioId, "Conectado com sucesso como " + usuarioId + " (" + poder + ")");
     }
 
     private void enviarResposta(String tipo, String remetente, String destino, String conteudo) throws IOException {
-        MensagemOSGURI resp = new MensagemOSGURI(tipo, remetente, destino, relogioVetorial.serializar(), conteudo);
+        MensagemOSGURI resp = new MensagemOSGURI(tipo, remetente, destino, broker.gerarTimestampGlobal(), conteudo);
         enviarMensagemRaw(resp.serializar());
     }
 
@@ -260,7 +253,7 @@ public class ClienteHandler implements Runnable {
             if (b != '\r') baos.write(b);
         }
         if (b == -1 && baos.size() == 0) return null;
-        return baos.toString(StandardCharsets.UTF_8);
+        return baos.toString(StandardCharsets.UTF_8.name());
     }
 
     private void fecharConexao() {
