@@ -35,7 +35,7 @@ public class LoggerNaoRepudio {
         );
 
         historicoEmMemoria.add(logRegistro);
-        System.out.println("[AUDITORIA NAÕ-REPÚDIO] " + logRegistro);
+        System.out.println("[AUDITORIA NÃO-REPÚDIO] " + logRegistro);
 
         try (PrintWriter out = new PrintWriter(new FileWriter(NOME_ARQUIVO_LOG, true))) {
             out.println(logRegistro);

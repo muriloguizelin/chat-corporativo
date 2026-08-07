@@ -5,6 +5,8 @@ services:
     ports:
       - "12345:12345"
     restart: unless-stopped
+    volumes:
+      - .:/app
 
   cliente:
     build: .

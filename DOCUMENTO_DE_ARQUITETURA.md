@@ -23,35 +23,32 @@ A finalidade deste documento é especificar detalhadamente a arquitetura de soft
 ### 2.1 Padrão Arquitetural
 A solução adota o padrão **Cliente-Servidor Mediado por Broker (Relay Broker Centralizado)** sobre conexões Sockets TCP persistentes.
 
-```text
-+-----------------------------------------------------------------------------------+
-|                                  CLIENTES (CLI)                                   |
-|  +-----------------------+   +-----------------------+   +---------------------+  |
-|  |  Cliente Executivo    |   |   Cliente Controle    |   |  Cliente Judiciário |  |
-|  | (MT-SEFAZ-MURILO)     |   |    (SP-CGU-ANA)       |   |   (RJ-TJ-CARLOS)    |  |
-|  +-----------------------+   +-----------------------+   +---------------------+  |
-+---------------------\--------------------|----------------------/-----------------+
-                       \                   |                     /                   
-                        \ Socket TCP       | Socket TCP         / Socket TCP         
-                         \ Porta 12345     | Porta 12345       / Porta 12345         
-                          v                v                  v                      
-+-----------------------------------------------------------------------------------+
-|                           SERVIDOR BROKER CENTRAL (RELAY)                         |
-|  +-----------------------------------------------------------------------------+  |
-|  |  Accept Loop (ServerSocket) -> ExecutorService Thread Pool (100 Workers)   |  |
-|  +-----------------------------------------------------------------------------+  |
-|  |  Camada de Inspeção & Governança:                                           |  |
-|  |    - Validação de Formato de Envelope OSGURI                                |  |
-|  |    - Verificação de Integridade & HMAC-SHA256                               |  |
-|  |    - Matriz de Restrição entre Poderes (Poder.podeComunicar)                |  |
-|  |    - Atribuição de Sequência Global Monotônica (AtomicLong)                |  |
-|  |    - Trilha de Auditoria Imutável (LoggerNaoRepudio / osguri_audit.log)     |  |
-|  +-----------------------------------------------------------------------------+  |
-|  |  Gerenciamento de Estado Concorrente:                                       |  |
-|  |    - ConcurrentHashMap<String, ClienteHandler> clientesConectados           |  |
-|  |    - ConcurrentHashMap<String, Grupo> grupos                                |  |
-|  +-----------------------------------------------------------------------------+  |
-+-----------------------------------------------------------------------------------+
+```mermaid
+graph TD
+    subgraph Clientes["CLIENTES (CLI INTERATIVOS)"]
+        CLI1["Cliente Executivo<br/><code>MT-SEFAZ-MURILO</code>"]
+        CLI2["Cliente Controle<br/><code>SP-CGU-ANA</code>"]
+        CLI3["Cliente Judiciário<br/><code>RJ-TJ-CARLOS</code>"]
+    end
+
+    subgraph Broker["SERVIDOR BROKER CENTRAL (RELAY BARRAMENTO)"]
+        AcceptLoop["Accept Loop (ServerSocket :12345)<br/>Thread Pool (100 Workers)"]
+        GovLayer["Camada de Governança & Inspeção:<br/>- Matriz de Poderes (Poder.podeComunicar)<br/>- Sequenciamento Global (AtomicLong)<br/>- Cifragem AES-256 + HMAC-SHA256<br/>- Audit Trail (osguri_audit.log)"]
+        StateMap["Gerenciamento de Estado Concorrente:<br/>- ConcurrentHashMap de Clientes & Grupos"]
+    end
+
+    CLI1 <-->|Socket TCP Persistente| AcceptLoop
+    CLI2 <-->|Socket TCP Persistente| AcceptLoop
+    CLI3 <-->|Socket TCP Persistente| AcceptLoop
+
+    AcceptLoop --> GovLayer
+    GovLayer --> StateMap
+
+    style Clientes fill:#f8fafc,stroke:#64748b,stroke-width:2px
+    style Broker fill:#f1f5f9,stroke:#0f172a,stroke-width:3px
+    style CLI1 fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
+    style CLI2 fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    style CLI3 fill:#f3e8ff,stroke:#9333ea,stroke-width:2px
 ```
 
 #### Decisão Arquitetural: Broker Centralizado vs. Peer-to-Peer (P2P)
